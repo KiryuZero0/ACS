@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anime Quotes and Streaming</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="container">
+    <h1>Anime Quotes</h1>
+    <div class="quote-box">
+        <p class="quote">"${quote.text}"</p>
+        <p class="author">- ${quote.author}</p>
+    </div>
+
+    <h2>Streaming</h2>
+    <div class="streaming-section">
+        <ul id="episodeList"></ul>
+        <video id="videoPlayer" controls width="600">
+            <source id="videoSource" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+    </div>
+</div>
+
+<script>
+    async function loadEpisodes() {
+        const response = await fetch('/api/episodes');
+        const episodes = await response.json();
+        const episodeList = document.getElementById('episodeList');
+
+        episodes.forEach(episode => {
+            const li = document.createElement('li');
+            const link = document.createElement('a');
+            link.textContent = episode.title;
+            link.href = "#";
+            link.onclick = () => playVideo(episode.filepath);
+            li.appendChild(link);
+            episodeList.appendChild(li);
+        });
+    }
+
+    function playVideo(filepath) {
+        const videoSource = document.getElementById('videoSource');
+        const videoPlayer = document.getElementById('videoPlayer');
+        videoSource.src = `/api/stream?filename=${filepath}`;
+        videoPlayer.load();
+        videoPlayer.play();
+    }
+
+    loadEpisodes();
+</script>
+</body>
+</html>

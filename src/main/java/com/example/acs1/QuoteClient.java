@@ -5,26 +5,29 @@ import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.layout.*;
+import javafx.scene.layout.VBox;
+import javafx.scene.media.Media;
+import javafx.scene.media.MediaPlayer;
+import javafx.scene.media.MediaView;
 import javafx.stage.Stage;
 
 import java.io.*;
-import java.net.*;
+import java.net.Socket;
 import java.util.concurrent.Executors;
 
 public class QuoteClient extends Application {
-    private static final String SERVER_IP = "127.0.0.1"; // Server IP (localhost pentru server local)
-    private static final int SERVER_PORT = 12345;        // Portul utilizat de server
+    private static final String SERVER_IP = "127.0.0.1"; // Adresa IP a serverului
+    private static final int SERVER_PORT = 12345;       // Portul serverului
 
-    // UI Components
+    // Elemente UI
     private TextArea chatArea = new TextArea();
     private TextField chatInput = new TextField();
     private Label quoteLabel = new Label("Press 'Get Quote' to fetch a random anime quote.");
     private ImageView imageView = new ImageView();
+    private MediaView mediaView = new MediaView();
 
-    // Server connection
+    // Conexiunea cu serverul
     private PrintWriter out;
 
     public static void main(String[] args) {
@@ -39,10 +42,10 @@ public class QuoteClient extends Application {
 
         // Zona de citate
         Button getQuoteButton = new Button("Get Quote");
-        getQuoteButton.setOnAction(event -> sendRequest("GET"));
+        getQuoteButton.setOnAction(event -> sendRequest("GET_QUOTE"));
 
-        imageView.setFitWidth(300); // Lățimea imaginii
-        imageView.setFitHeight(300); // Înălțimea imaginii
+        imageView.setFitWidth(300);
+        imageView.setFitHeight(300);
         imageView.setPreserveRatio(true);
 
         VBox quoteBox = new VBox(10, quoteLabel, imageView, getQuoteButton);
@@ -50,13 +53,13 @@ public class QuoteClient extends Application {
         quoteBox.setStyle("-fx-border-color: gray; -fx-border-width: 1; -fx-alignment: center;");
 
         // Zona de chat
-        chatArea.setEditable(false); // Chat-ul este doar pentru citire
+        chatArea.setEditable(false);
         chatInput.setPromptText("Enter your message...");
         chatInput.setOnAction(event -> {
             String message = chatInput.getText().trim();
             if (!message.isEmpty()) {
                 sendRequest("CHAT:" + message);
-                chatInput.clear(); // Șterge inputul după trimitere
+                chatInput.clear();
             }
         });
 
@@ -67,12 +70,20 @@ public class QuoteClient extends Application {
         chatBox.setPadding(new Insets(10));
         chatBox.setStyle("-fx-border-color: gray; -fx-border-width: 1; -fx-alignment: center;");
 
+        // Zona de redare media
+        Button loadEpisodesButton = new Button("Load Episodes");
+        loadEpisodesButton.setOnAction(event -> sendRequest("GET_EPISODES"));
+
+        VBox mediaBox = new VBox(10, mediaView, loadEpisodesButton);
+        mediaBox.setPadding(new Insets(10));
+        mediaBox.setStyle("-fx-border-color: gray; -fx-border-width: 1; -fx-alignment: center;");
+
         // Adăugare secțiuni în layout principal
-        root.getChildren().addAll(quoteBox, chatBox);
+        root.getChildren().addAll(quoteBox, chatBox, mediaBox);
 
         // Configurare scenă
-        Scene scene = new Scene(root, 500, 700);
-        primaryStage.setTitle("Anime Quote Client");
+        Scene scene = new Scene(root, 600, 800);
+        primaryStage.setTitle("Anime Streaming Client");
         primaryStage.setScene(scene);
         primaryStage.show();
 
@@ -93,26 +104,50 @@ public class QuoteClient extends Application {
                 try {
                     String serverMessage;
                     while ((serverMessage = in.readLine()) != null) {
-                        final String message = serverMessage; // Variabilă finală pentru a fi utilizată în lambda
-                        Platform.runLater(() -> {
-                            if (message.startsWith("QUOTE:")) {
-                                String quote = message.substring(6).trim();
-                                quoteLabel.setText(quote);
-                            } else if (message.startsWith("IMAGE:")) {
-                                String imagePath = message.substring(6).trim();
-                                imageView.setImage(new Image("file:" + imagePath));
-                            } else if (message.startsWith("CHAT:")) {
-                                chatArea.appendText(message.substring(5).trim() + "\n");
-                            }
-                        });
+                        final String message = serverMessage;
+                        Platform.runLater(() -> processServerMessage(message));
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
             });
         } catch (IOException e) {
-            e.printStackTrace();
             showError("Failed to connect to the server. Please check the server status.");
+        }
+    }
+
+    private void processServerMessage(String message) {
+        if (message.startsWith("QUOTE:")) {
+            String quote = message.substring(6).trim();
+            quoteLabel.setText(quote);
+        } else if (message.startsWith("CHAT:")) {
+            chatArea.appendText(message.substring(5).trim() + "\n");
+        } else if (message.startsWith("EPISODES:")) {
+            loadEpisodes(message.substring(9).trim());
+        }
+    }
+
+    private void loadEpisodes(String episodeList) {
+        String[] episodes = episodeList.split(";");
+        if (episodes.length > 0) {
+            String[] episode = episodes[0].split(",");
+            if (episode.length == 2) {
+                String title = episode[0];
+                String filepath = episode[1];
+                playMedia(filepath);
+                chatArea.appendText("Now playing: " + title + "\n");
+            }
+        }
+    }
+
+    private void playMedia(String filepath) {
+        try {
+            Media media = new Media(new File(filepath).toURI().toString());
+            MediaPlayer mediaPlayer = new MediaPlayer(media);
+            mediaView.setMediaPlayer(mediaPlayer);
+            mediaPlayer.play();
+        } catch (Exception e) {
+            chatArea.appendText("Error loading media file: " + filepath + "\n");
         }
     }
 
